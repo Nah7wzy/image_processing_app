@@ -17,24 +17,16 @@ class CameraScreen extends StatefulWidget {
 class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver {
   CameraController? controller;
-  VideoPlayerController? videoController;
 
   File? _imageFile;
-  File? _videoFile;
-
   // Initial values
   bool _isCameraInitialized = false;
   bool _isRearCameraSelected = true;
-  bool _isVideoCameraSelected = false;
-  bool _isRecordingInProgress = false;
-  double _minAvailableExposureOffset = 0.0;
-  double _maxAvailableExposureOffset = 0.0;
   double _minAvailableZoom = 1.0;
   double _maxAvailableZoom = 1.0;
 
   // Current values
   double _currentZoomLevel = 1.0;
-  double _currentExposureOffset = 0.0;
   FlashMode? _currentFlashMode;
 
   List<File> allFileList = [];
@@ -63,12 +55,9 @@ class _CameraScreenState extends State<CameraScreen>
           fileNames.reduce((curr, next) => curr[0] > next[0] ? curr : next);
       String recentFileName = recentFile[1];
       if (recentFileName.contains('.mp4')) {
-        _videoFile = File('${directory.path}/$recentFileName');
         _imageFile = null;
-        _startVideoPlayer();
       } else {
         _imageFile = File('${directory.path}/$recentFileName');
-        _videoFile = null;
       }
 
       setState(() {});
@@ -92,85 +81,8 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
-  Future<void> _startVideoPlayer() async {
-    if (_videoFile != null) {
-      videoController = VideoPlayerController.file(_videoFile!);
-      await videoController!.initialize().then((_) {
-        // Ensure the first frame is shown after the video is initialized,
-        // even before the play button has been pressed.
-        setState(() {});
-      });
-      await videoController!.setLooping(true);
-      await videoController!.play();
-    }
-  }
-
-  Future<void> startVideoRecording() async {
-    final CameraController? cameraController = controller;
-
-    if (controller!.value.isRecordingVideo) {
-      // A recording has already started, do nothing.
-      return;
-    }
-
-    try {
-      await cameraController!.startVideoRecording();
-      setState(() {
-        _isRecordingInProgress = true;
-        print(_isRecordingInProgress);
-      });
-    } on CameraException catch (e) {
-      print('Error starting to record video: $e');
-    }
-  }
-
-  Future<XFile?> stopVideoRecording() async {
-    if (!controller!.value.isRecordingVideo) {
-      // Recording is already is stopped state
-      return null;
-    }
-
-    try {
-      XFile file = await controller!.stopVideoRecording();
-      setState(() {
-        _isRecordingInProgress = false;
-      });
-      return file;
-    } on CameraException catch (e) {
-      print('Error stopping video recording: $e');
-      return null;
-    }
-  }
-
-  Future<void> pauseVideoRecording() async {
-    if (!controller!.value.isRecordingVideo) {
-      // Video recording is not in progress
-      return;
-    }
-
-    try {
-      await controller!.pauseVideoRecording();
-    } on CameraException catch (e) {
-      print('Error pausing video recording: $e');
-    }
-  }
-
-  Future<void> resumeVideoRecording() async {
-    if (!controller!.value.isRecordingVideo) {
-      // No video recording was in progress
-      return;
-    }
-
-    try {
-      await controller!.resumeVideoRecording();
-    } on CameraException catch (e) {
-      print('Error resuming video recording: $e');
-    }
-  }
-
   void resetCameraValues() async {
     _currentZoomLevel = 1.0;
-    _currentExposureOffset = 0.0;
   }
 
   void onNewCameraSelected(CameraDescription cameraDescription) async {
@@ -178,7 +90,7 @@ class _CameraScreenState extends State<CameraScreen>
 
     final CameraController cameraController = CameraController(
       cameraDescription,
-      currentResolutionPreset,
+      ResolutionPreset.high,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
 
@@ -200,12 +112,6 @@ class _CameraScreenState extends State<CameraScreen>
     try {
       await cameraController.initialize();
       await Future.wait([
-        cameraController
-            .getMinExposureOffset()
-            .then((value) => _minAvailableExposureOffset = value),
-        cameraController
-            .getMaxExposureOffset()
-            .then((value) => _maxAvailableExposureOffset = value),
         cameraController
             .getMaxZoomLevel()
             .then((value) => _maxAvailableZoom = value),
@@ -255,7 +161,6 @@ class _CameraScreenState extends State<CameraScreen>
   @override
   void dispose() {
     controller?.dispose();
-    videoController?.dispose();
     super.dispose();
   }
 
@@ -294,35 +199,6 @@ class _CameraScreenState extends State<CameraScreen>
                                       left: 8.0,
                                       right: 8.0,
                                     ),
-                                    child: DropdownButton<ResolutionPreset>(
-                                      dropdownColor: Colors.black87,
-                                      underline: Container(),
-                                      value: currentResolutionPreset,
-                                      items: [
-                                        for (ResolutionPreset preset
-                                            in resolutionPresets)
-                                          DropdownMenuItem(
-                                            child: Text(
-                                              preset
-                                                  .toString()
-                                                  .split('.')[1]
-                                                  .toUpperCase(),
-                                              style: TextStyle(
-                                                  color: Colors.white),
-                                            ),
-                                            value: preset,
-                                          )
-                                      ],
-                                      onChanged: (value) {
-                                        setState(() {
-                                          currentResolutionPreset = value!;
-                                          _isCameraInitialized = false;
-                                        });
-                                        onNewCameraSelected(
-                                            controller!.description);
-                                      },
-                                      hint: Text("Select item"),
-                                    ),
                                   ),
                                 ),
                               ),
@@ -335,37 +211,11 @@ class _CameraScreenState extends State<CameraScreen>
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(10.0),
                                   ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Text(
-                                      _currentExposureOffset
-                                              .toStringAsFixed(1) +
-                                          'x',
-                                      style: TextStyle(color: Colors.black),
-                                    ),
-                                  ),
                                 ),
                               ),
                               Expanded(
-                                child: RotatedBox(
-                                  quarterTurns: 3,
-                                  child: Container(
-                                    height: 30,
-                                    child: Slider(
-                                      value: _currentExposureOffset,
-                                      min: _minAvailableExposureOffset,
-                                      max: _maxAvailableExposureOffset,
-                                      activeColor: Colors.white,
-                                      inactiveColor: Colors.white30,
-                                      onChanged: (value) async {
-                                        setState(() {
-                                          _currentExposureOffset = value;
-                                        });
-                                        await controller!
-                                            .setExposureOffset(value);
-                                      },
-                                    ),
-                                  ),
+                                child: Container(
+                                  height: 30,
                                 ),
                               ),
                               Row(
@@ -409,152 +259,61 @@ class _CameraScreenState extends State<CameraScreen>
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
+                                  Container(),
                                   InkWell(
-                                    onTap: _isRecordingInProgress
-                                        ? () async {
-                                            if (controller!
-                                                .value.isRecordingPaused) {
-                                              await resumeVideoRecording();
-                                            } else {
-                                              await pauseVideoRecording();
-                                            }
-                                          }
-                                        : () {
-                                            setState(() {
-                                              _isCameraInitialized = false;
-                                            });
-                                            onNewCameraSelected(cameras[
-                                                _isRearCameraSelected ? 1 : 0]);
-                                            setState(() {
-                                              _isRearCameraSelected =
-                                                  !_isRearCameraSelected;
-                                            });
-                                          },
+                                    onTap: () async {
+                                      XFile? rawImage = await takePicture();
+                                      File imageFile = File(rawImage!.path);
+
+                                      int currentUnix =
+                                          DateTime.now().millisecondsSinceEpoch;
+
+                                      final directory =
+                                          await getApplicationDocumentsDirectory();
+
+                                      String fileFormat =
+                                          imageFile.path.split('.').last;
+
+                                      print("this is the file format: " +
+                                          fileFormat);
+
+                                      await imageFile.copy(
+                                        '${directory.path}/$currentUnix.$fileFormat',
+                                      );
+
+                                      refreshAlreadyCapturedImages();
+                                    },
                                     child: Stack(
                                       alignment: Alignment.center,
                                       children: [
                                         Icon(
                                           Icons.circle,
-                                          color: Colors.black38,
-                                          size: 60,
-                                        ),
-                                        _isRecordingInProgress
-                                            ? controller!
-                                                    .value.isRecordingPaused
-                                                ? Icon(
-                                                    Icons.play_arrow,
-                                                    color: Colors.white,
-                                                    size: 30,
-                                                  )
-                                                : Icon(
-                                                    Icons.pause,
-                                                    color: Colors.white,
-                                                    size: 30,
-                                                  )
-                                            : Icon(
-                                                _isRearCameraSelected
-                                                    ? Icons.camera_front
-                                                    : Icons.camera_rear,
-                                                color: Colors.white,
-                                                size: 30,
-                                              ),
-                                      ],
-                                    ),
-                                  ),
-                                  InkWell(
-                                    onTap: _isVideoCameraSelected
-                                        ? () async {
-                                            if (_isRecordingInProgress) {
-                                              XFile? rawVideo =
-                                                  await stopVideoRecording();
-                                              File videoFile =
-                                                  File(rawVideo!.path);
-
-                                              int currentUnix = DateTime.now()
-                                                  .millisecondsSinceEpoch;
-
-                                              final directory =
-                                                  await getApplicationDocumentsDirectory();
-
-                                              String fileFormat = videoFile.path
-                                                  .split('.')
-                                                  .last;
-
-                                              _videoFile = await videoFile.copy(
-                                                '${directory.path}/$currentUnix.$fileFormat',
-                                              );
-
-                                              _startVideoPlayer();
-                                            } else {
-                                              await startVideoRecording();
-                                            }
-                                          }
-                                        : () async {
-                                            XFile? rawImage =
-                                                await takePicture();
-                                            File imageFile =
-                                                File(rawImage!.path);
-
-                                            int currentUnix = DateTime.now()
-                                                .millisecondsSinceEpoch;
-
-                                            final directory =
-                                                await getApplicationDocumentsDirectory();
-
-                                            String fileFormat =
-                                                imageFile.path.split('.').last;
-
-                                            print(fileFormat);
-
-                                            await imageFile.copy(
-                                              '${directory.path}/$currentUnix.$fileFormat',
-                                            );
-
-                                            refreshAlreadyCapturedImages();
-                                          },
-                                    child: Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.circle,
-                                          color: _isVideoCameraSelected
-                                              ? Colors.white
-                                              : Colors.white38,
+                                          color: Colors.white,
                                           size: 80,
                                         ),
                                         Icon(
                                           Icons.circle,
-                                          color: _isVideoCameraSelected
-                                              ? Colors.red
-                                              : Colors.white,
+                                          color: Colors.white,
                                           size: 65,
                                         ),
-                                        _isVideoCameraSelected &&
-                                                _isRecordingInProgress
-                                            ? Icon(
-                                                Icons.stop_rounded,
-                                                color: Colors.white,
-                                                size: 32,
-                                              )
-                                            : Container(),
+                                        Container(),
                                       ],
                                     ),
                                   ),
                                   InkWell(
-                                    onTap:
-                                        _imageFile != null || _videoFile != null
-                                            ? () {
-                                                Navigator.of(context).push(
-                                                  MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        PreviewScreen(
-                                                      imageFile: _imageFile!,
-                                                      fileList: allFileList,
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            : null,
+                                    onTap: _imageFile != null
+                                        ? () {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    PreviewScreen(
+                                                  imageFile: _imageFile!,
+                                                  fileList: allFileList,
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        : null,
                                     child: Container(
                                       width: 60,
                                       height: 60,
@@ -573,20 +332,6 @@ class _CameraScreenState extends State<CameraScreen>
                                               )
                                             : null,
                                       ),
-                                      child: videoController != null &&
-                                              videoController!
-                                                  .value.isInitialized
-                                          ? ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(8.0),
-                                              child: AspectRatio(
-                                                aspectRatio: videoController!
-                                                    .value.aspectRatio,
-                                                child: VideoPlayer(
-                                                    videoController!),
-                                              ),
-                                            )
-                                          : Container(),
                                     ),
                                   ),
                                 ],
@@ -604,63 +349,6 @@ class _CameraScreenState extends State<CameraScreen>
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(top: 8.0),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(
-                                      left: 8.0,
-                                      right: 4.0,
-                                    ),
-                                    child: TextButton(
-                                      onPressed: _isRecordingInProgress
-                                          ? null
-                                          : () {
-                                              if (_isVideoCameraSelected) {
-                                                setState(() {
-                                                  _isVideoCameraSelected =
-                                                      false;
-                                                });
-                                              }
-                                            },
-                                      style: TextButton.styleFrom(
-                                        primary: _isVideoCameraSelected
-                                            ? Colors.black54
-                                            : Colors.black,
-                                        backgroundColor: _isVideoCameraSelected
-                                            ? Colors.white30
-                                            : Colors.white,
-                                      ),
-                                      child: Text('IMAGE'),
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(
-                                        left: 4.0, right: 8.0),
-                                    child: TextButton(
-                                      onPressed: () {
-                                        if (!_isVideoCameraSelected) {
-                                          setState(() {
-                                            _isVideoCameraSelected = true;
-                                          });
-                                        }
-                                      },
-                                      style: TextButton.styleFrom(
-                                        primary: _isVideoCameraSelected
-                                            ? Colors.black
-                                            : Colors.black54,
-                                        backgroundColor: _isVideoCameraSelected
-                                            ? Colors.white
-                                            : Colors.white30,
-                                      ),
-                                      child: Text('VIDEO'),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
                           Padding(
                             padding:
@@ -712,22 +400,6 @@ class _CameraScreenState extends State<CameraScreen>
                                   child: Icon(
                                     Icons.flash_on,
                                     color: _currentFlashMode == FlashMode.always
-                                        ? Colors.amber
-                                        : Colors.white,
-                                  ),
-                                ),
-                                InkWell(
-                                  onTap: () async {
-                                    setState(() {
-                                      _currentFlashMode = FlashMode.torch;
-                                    });
-                                    await controller!.setFlashMode(
-                                      FlashMode.torch,
-                                    );
-                                  },
-                                  child: Icon(
-                                    Icons.highlight,
-                                    color: _currentFlashMode == FlashMode.torch
                                         ? Colors.amber
                                         : Colors.white,
                                   ),

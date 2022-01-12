@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_camera_demo/screens/camera_screen.dart';
 import 'package:flutter_camera_demo/screens/captures_screen.dart';
 
 class PreviewScreen extends StatelessWidget {
@@ -19,27 +20,38 @@ class PreviewScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextButton(
-              onPressed: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (context) => CapturesScreen(
-                      imageFileList: fileList,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (context) => CameraScreen(),
                     ),
-                  ),
-                );
-              },
-              child: Text('Go to all captures'),
-              style: TextButton.styleFrom(
-                primary: Colors.black,
-                backgroundColor: Colors.white,
+                  );
+                },
+                child: Text('Go back'),
+                style: TextButton.styleFrom(
+                  primary: Colors.black,
+                  backgroundColor: Colors.white,
+                ),
               ),
-            ),
+              TextButton(
+                onPressed: () {},
+                child: Text("Upload"),
+                style: TextButton.styleFrom(
+                  primary: Colors.black,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+            ],
           ),
           Expanded(
             child: Image.file(imageFile),
+          ),
+          Container(
+            child: Text("Upload this picture"),
           ),
         ],
       ),
